@@ -17,6 +17,14 @@ use crate::{
 ///
 /// The counter keeps one small event queue per key and automatically evicts idle keys from the cache.
 /// Cloning a counter is cheap and shares the same stored counts.
+///
+/// # Consistency
+///
+/// This counter is best-effort when cache eviction happens concurrently with updates.
+/// 
+/// A `record` call may get a handle to a key's window, then the cache may evict that key before the event is written.
+/// 
+/// In that case the event is written to the old window handle, but future `count` calls may not see it because the key is no longer in the cache. Use this type for local, bounded, in-memory counting, not as the only strict security limit for login or payment flows.
 pub struct SlidingWindowCounter<K, C = SystemClock> {
     cache:              Cache<K, Arc<Mutex<SlidingWindow>>>,
     window:             Duration,
@@ -103,6 +111,8 @@ where
     /// Records one event for `key` and returns the current count for that key.
     ///
     /// Returns `None` when this record exceeds `max_events_per_key`. In that case the newest event is still stored, but the oldest stored event for the key is removed.
+    ///
+    /// When cache eviction races with this method, the returned value may come from a window that has just been evicted from the cache. Future `count` calls for the same key can then return `0` or a lower count.
     pub fn record(&self, key: K) -> Option<usize> {
         let now = self.clock.now();
         let window = self.cache.get_with(key, || Arc::new(Mutex::new(SlidingWindow::default())));
