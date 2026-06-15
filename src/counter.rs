@@ -46,8 +46,8 @@ impl<K, C> Debug for SlidingWindowCounter<K, C> {
             .debug_struct("SlidingWindowCounter")
             .field("window", &self.window)
             .field("max_events_per_key", &self.max_events_per_key)
-            .field("entry_count", &self.cache.entry_count())
-            .finish()
+            .field("*entry_count", &self.cache.entry_count())
+            .finish_non_exhaustive()
     }
 }
 
