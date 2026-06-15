@@ -9,11 +9,23 @@ pub(crate) struct SlidingWindow {
 }
 
 impl SlidingWindow {
-    pub(crate) fn record(&mut self, now: Instant, window: Duration) -> usize {
+    pub(crate) fn record(
+        &mut self,
+        now: Instant,
+        window: Duration,
+        max_events: usize,
+    ) -> Option<usize> {
         self.remove_expired(now, window);
+
+        let exceeded_limit = self.events.len() >= max_events;
+
+        if exceeded_limit {
+            self.events.pop_front();
+        }
+
         self.events.push_back(now);
 
-        self.events.len()
+        if exceeded_limit { None } else { Some(self.events.len()) }
     }
 
     pub(crate) fn count(&mut self, now: Instant, window: Duration) -> usize {

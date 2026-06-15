@@ -14,6 +14,7 @@ use sliding_window_counter::SlidingWindowCounter;
 
 const LOGIN_WINDOW: Duration = Duration::from_secs(60);
 const MAX_CLIENT_IPS: u64 = 10000;
+const MAX_ATTEMPTS_PER_IP: usize = 5;
 
 #[derive(Clone)]
 struct AppState {
@@ -30,7 +31,11 @@ impl FromRef<AppState> for ClientIpConfig {
 #[tokio::main]
 async fn main() {
     let state = AppState {
-        attempts:         SlidingWindowCounter::new(LOGIN_WINDOW, MAX_CLIENT_IPS),
+        attempts:         SlidingWindowCounter::new(
+            LOGIN_WINDOW,
+            MAX_CLIENT_IPS,
+            MAX_ATTEMPTS_PER_IP,
+        ),
         client_ip_config: ClientIpConfig::builder()
             .build()
             .expect("default client IP config should be valid"),
@@ -57,7 +62,10 @@ async fn login(
     let ip = client_ip.ip();
 
     // Record before checking the password so both successful and failed attempts are counted.
-    let attempts_in_window = state.attempts.record(ip);
+    let attempts_in_window = state
+        .attempts
+        .record(ip)
+        .map_or_else(|| format!("{MAX_ATTEMPTS_PER_IP}+"), |count| count.to_string());
     let login_ok = query.get("password").is_some_and(|password| password == "secret");
     let result = if login_ok { "success" } else { "failure" };
 

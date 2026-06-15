@@ -18,9 +18,10 @@ use crate::{
 /// The counter keeps one small event queue per key and automatically evicts idle keys from the cache.
 /// Cloning a counter is cheap and shares the same stored counts.
 pub struct SlidingWindowCounter<K, C = SystemClock> {
-    cache:  Cache<K, Arc<Mutex<SlidingWindow>>>,
-    window: Duration,
-    clock:  C,
+    cache:              Cache<K, Arc<Mutex<SlidingWindow>>>,
+    window:             Duration,
+    max_events_per_key: usize,
+    clock:              C,
 }
 
 impl<K, C> Clone for SlidingWindowCounter<K, C>
@@ -30,7 +31,10 @@ where
     #[inline]
     fn clone(&self) -> Self {
         Self {
-            cache: self.cache.clone(), window: self.window, clock: self.clock.clone()
+            cache:              self.cache.clone(),
+            window:             self.window,
+            max_events_per_key: self.max_events_per_key,
+            clock:              self.clock.clone(),
         }
     }
 }
@@ -41,6 +45,7 @@ impl<K, C> Debug for SlidingWindowCounter<K, C> {
         formatter
             .debug_struct("SlidingWindowCounter")
             .field("window", &self.window)
+            .field("max_events_per_key", &self.max_events_per_key)
             .field("entry_count", &self.cache.entry_count())
             .finish()
     }
@@ -52,15 +57,15 @@ where
 {
     /// Creates a counter that uses [`Instant::now`](std::time::Instant::now) as its time source.
     ///
-    /// `window` is the time range used for counting recent events, and `max_keys` limits how many keys can stay in the cache.
+    /// `window` is the time range used for counting recent events, `max_keys` limits how many keys can stay in the cache, and `max_events_per_key` limits how many event timestamps are stored for one key.
     ///
     /// # Panics
     ///
-    /// Panics if `window` is zero or if `max_keys` is zero.
+    /// Panics if `window`, `max_keys`, or `max_events_per_key` is zero.
     #[inline]
     #[must_use]
-    pub fn new(window: Duration, max_keys: u64) -> Self {
-        Self::with_clock(window, max_keys, SystemClock)
+    pub fn new(window: Duration, max_keys: u64, max_events_per_key: usize) -> Self {
+        Self::with_clock(window, max_keys, max_events_per_key, SystemClock)
     }
 }
 
@@ -75,29 +80,40 @@ where
     ///
     /// # Panics
     ///
-    /// Panics if `window` is zero or if `max_keys` is zero.
+    /// Panics if `window`, `max_keys`, or `max_events_per_key` is zero.
     #[must_use]
-    pub fn with_clock(window: Duration, max_keys: u64, clock: C) -> Self {
+    pub fn with_clock(
+        window: Duration,
+        max_keys: u64,
+        max_events_per_key: usize,
+        clock: C,
+    ) -> Self {
         assert!(!window.is_zero(), "window must be greater than zero");
         assert!(max_keys > 0, "max_keys must be greater than zero");
+        assert!(max_events_per_key > 0, "max_events_per_key must be greater than zero");
 
         Self {
             cache: Cache::builder().time_to_idle(window).max_capacity(max_keys).build(),
             window,
+            max_events_per_key,
             clock,
         }
     }
 
     /// Records one event for `key` and returns the current count for that key.
-    pub fn record(&self, key: K) -> usize {
+    ///
+    /// Returns `None` when this record exceeds `max_events_per_key`. In that case the newest event is still stored, but the oldest stored event for the key is removed.
+    pub fn record(&self, key: K) -> Option<usize> {
         let now = self.clock.now();
         let window = self.cache.get_with(key, || Arc::new(Mutex::new(SlidingWindow::default())));
         let mut window = window.lock();
 
-        window.record(now, self.window)
+        window.record(now, self.window, self.max_events_per_key)
     }
 
-    /// Returns the current count for `key` without adding a new event.
+    /// Returns the current stored count for `key` without adding a new event.
+    ///
+    /// The returned count is capped by `max_events_per_key`.
     pub fn count(&self, key: &K) -> usize {
         let now = self.clock.now();
         let Some(window) = self.cache.get(key) else {
@@ -112,5 +128,11 @@ where
     #[inline]
     pub const fn window(&self) -> Duration {
         self.window
+    }
+
+    /// Returns the maximum number of event timestamps stored for one key.
+    #[inline]
+    pub const fn max_events_per_key(&self) -> usize {
+        self.max_events_per_key
     }
 }
