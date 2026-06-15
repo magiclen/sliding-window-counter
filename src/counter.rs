@@ -21,9 +21,9 @@ use crate::{
 /// # Consistency
 ///
 /// This counter is best-effort when cache eviction happens concurrently with updates.
-/// 
+///
 /// A `record` call may get a handle to a key's window, then the cache may evict that key before the event is written.
-/// 
+///
 /// In that case the event is written to the old window handle, but future `count` calls may not see it because the key is no longer in the cache. Use this type for local, bounded, in-memory counting, not as the only strict security limit for login or payment flows.
 pub struct SlidingWindowCounter<K, C = SystemClock> {
     cache:              Cache<K, Arc<Mutex<SlidingWindow>>>,

@@ -1,5 +1,7 @@
-/*!
-# sliding-window-counter
+sliding-window-counter
+===========
+
+[![CI](https://github.com/magiclen/sliding-window-counter/actions/workflows/ci.yml/badge.svg)](https://github.com/magiclen/sliding-window-counter/actions/workflows/ci.yml)
 
 A keyed sliding-window counter for tracking recent events per key.
 
@@ -34,13 +36,15 @@ assert_eq!(Some(5), counter.record(user_id));
 assert_eq!(None, counter.record(user_id));
 assert_eq!(5, counter.count(&user_id));
 ```
-*/
 
-mod clock;
-mod counter;
-mod window;
+## Crates.io
 
-pub use crate::{
-    clock::{Clock, SystemClock},
-    counter::SlidingWindowCounter,
-};
+https://crates.io/crates/sliding-window-counter
+
+## Documentation
+
+https://docs.rs/sliding-window-counter
+
+## License
+
+[MIT](LICENSE)
