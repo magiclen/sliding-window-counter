@@ -35,18 +35,13 @@ where
     }
 }
 
-impl<K, C> Debug for SlidingWindowCounter<K, C>
-where
-    K: Debug + Eq + Hash + Send + Sync + 'static,
-    C: Debug,
-{
+impl<K, C> Debug for SlidingWindowCounter<K, C> {
     #[inline]
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("SlidingWindowCounter")
-            .field("cache", &self.cache)
             .field("window", &self.window)
-            .field("clock", &self.clock)
+            .field("entry_count", &self.cache.entry_count())
             .finish()
     }
 }
