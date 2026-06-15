@@ -6,10 +6,10 @@ use std::{
 
 use axum::{
     Router,
-    extract::{FromRef, Query, State},
+    extract::{Query, State},
     routing::post,
 };
-use axum_client_addr::{ClientIp, ClientIpConfig};
+use axum_client_addr::{ClientIp, ClientIpConfig, ClientIpConfigSource};
 use sliding_window_counter::SlidingWindowCounter;
 
 const LOGIN_WINDOW: Duration = Duration::from_secs(60);
@@ -22,9 +22,10 @@ struct AppState {
     client_ip_config: ClientIpConfig,
 }
 
-impl FromRef<AppState> for ClientIpConfig {
-    fn from_ref(state: &AppState) -> Self {
-        state.client_ip_config.clone()
+impl ClientIpConfigSource for AppState {
+    #[inline]
+    fn client_ip_config(&self) -> &ClientIpConfig {
+        &self.client_ip_config
     }
 }
 
