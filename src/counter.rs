@@ -20,11 +20,11 @@ use crate::{
 ///
 /// # Consistency
 ///
-/// This counter is best-effort when cache eviction happens concurrently with updates.
+/// Each `record` call uses Moka's key-level entry API before updating the per-key event window, so concurrent `record` calls for the same key do not overwrite each other or write only to a detached stale handle.
 ///
-/// A `record` call may get a handle to a key's window, then the cache may evict that key before the event is written.
+/// However, this counter is still best-effort in broader terms: counts may be lower than the true global count when the process restarts, when multiple application instances share traffic, or when a key is genuinely evicted from the cache (e.g. capacity pressure or time-to-idle expiry of an idle key).
 ///
-/// In that case the event is written to the old window handle, but future `count` calls may not see it because the key is no longer in the cache. Use this type for local, bounded, in-memory counting, not as the only strict security limit for login or payment flows.
+/// Use this type for local, bounded, in-memory counting, not as the only strict security limit for login or payment flows.
 pub struct SlidingWindowCounter<K, C = SystemClock> {
     cache:              Cache<K, Arc<Mutex<SlidingWindow>>>,
     window:             Duration,
@@ -111,14 +111,24 @@ where
     /// Records one event for `key` and returns the current count for that key.
     ///
     /// Returns `None` when this record exceeds `max_events_per_key`. In that case the newest event is still stored, but the oldest stored event for the key is removed.
-    ///
-    /// When cache eviction races with this method, the returned value may come from a window that has just been evicted from the cache. Future `count` calls for the same key can then return `0` or a lower count.
     pub fn record(&self, key: K) -> Option<usize> {
         let now = self.clock.now();
-        let window = self.cache.get_with(key, || Arc::new(Mutex::new(SlidingWindow::default())));
-        let mut window = window.lock();
+        let window = self.window;
+        let max_events_per_key = self.max_events_per_key;
+        let mut result = None;
 
-        window.record(now, self.window, self.max_events_per_key)
+        self.cache.entry(key).and_upsert_with(|maybe_entry| {
+            let arc = match maybe_entry {
+                Some(entry) => entry.into_value(),
+                None => Arc::new(Mutex::new(SlidingWindow::default())),
+            };
+
+            result = arc.lock().record(now, window, max_events_per_key);
+
+            arc
+        });
+
+        result
     }
 
     /// Returns the current stored count for `key` without adding a new event.
