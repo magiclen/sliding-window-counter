@@ -1,0 +1,22 @@
+[package]
+name = "sliding-window-counter"
+version = "0.1.0"
+authors = ["Magic Len <len@magiclen.org>"]
+edition = "2024"
+rust-version = "1.85"
+repository = "https://github.com/magiclen/sliding-window-counter"
+homepage = "https://magiclen.org/sliding-window-counter"
+keywords = ["sliding-window", "counter", "rate-limit"]
+categories = ["caching"]
+description = "A keyed sliding-window counter for tracking recent events per key."
+license = "MIT"
+include = ["src/**/*", "examples/**/*", "Cargo.toml", "README.md", "LICENSE"]
+
+[dependencies]
+moka = { version = "0.12", features = ["sync"] }
+parking_lot = "0.12"
+
+[dev-dependencies]
+axum = "0.8"
+axum-client-addr = "0.1"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
