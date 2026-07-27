@@ -37,9 +37,7 @@ async fn main() {
             MAX_CLIENT_IPS,
             MAX_ATTEMPTS_PER_IP,
         ),
-        client_ip_config: ClientIpConfig::builder()
-            .build()
-            .expect("default client IP config should be valid"),
+        client_ip_config: ClientIpConfig::builder().trust_all_proxies().build(),
     };
 
     let app = Router::new().route("/login", post(login)).with_state(state);
